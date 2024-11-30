@@ -135,8 +135,24 @@ def stop_operation():
 
 
 # Main UI setup
-root = tk.Tk()
+root = tk.Tk()  # Ensure root is defined
 root.title("WhatsApp Message Sender")
+
+def on_closing():
+    """Handle the window close event."""
+    global stop_flag
+    if  stop_flag:
+        if messagebox.askyesno("Quit", "Messages are still being sent. Do you want to stop and exit?"):
+            stop_flag = True
+        else:
+            return
+    else:
+        if messagebox.askyesno("Quit", "Are you sure you want to exit?"):
+            root.destroy()
+
+# Attach the handler to the window close event
+root.protocol("WM_DELETE_WINDOW", on_closing)
+
 
 # Main frame
 main_frame = tk.Frame(root)
