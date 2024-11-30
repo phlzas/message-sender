@@ -1,0 +1,8 @@
+/.vscode
+/build
+/d.py
+/dist
+/Message_sender.spec
+/Message_sender.test.py
+/whatsapp_script copy.py
+/whatsapp_script.py
