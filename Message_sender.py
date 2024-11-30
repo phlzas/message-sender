@@ -25,7 +25,6 @@ def log_results(results):
         file.write("\n".join(results))
     return log_file
 
-
 def send_message_with_logging(participant, message):
     """Send a message and return the status."""
     try:
@@ -43,14 +42,15 @@ def send_message_with_logging(participant, message):
     except Exception as e:
         return f"Failed to send message to {participant}: {e}"
 
-def start_sending(progress_bar, percent_var, result_label, participants, instructor, message, main_frame, progress_frame):
-    """Simulate message sending with a progress bar and return to main screen."""
+def start_sending(progress_bar, percent_var, result_label, participants, instructor, participant_message, instructor_message, main_frame, progress_frame):
+    """Simulate message sending with a progress bar and return to the main screen."""
     global stop_flag
     total_tasks = len(participants) + (1 if instructor else 0)
     step = 100 / total_tasks
 
     results = []
     completed = 0
+
     for participant in participants:
         if stop_flag:  # Check if the operation should stop
             message_queue.put("STOPPED")
@@ -58,7 +58,7 @@ def start_sending(progress_bar, percent_var, result_label, participants, instruc
 
         participant = participant.strip()
         if participant:
-            result = send_message_with_logging(participant, message)
+            result = send_message_with_logging(participant, participant_message)
             results.append(result)
             completed += 1
             progress_bar['value'] += step
@@ -67,7 +67,7 @@ def start_sending(progress_bar, percent_var, result_label, participants, instruc
             time.sleep(0.5)  # Simulate time delay for better user feedback
 
     if not stop_flag and instructor:
-        result = send_message_with_logging(instructor, message)
+        result = send_message_with_logging(instructor, instructor_message)
         results.append(result)
         completed += 1
         progress_bar['value'] += step
@@ -76,14 +76,13 @@ def start_sending(progress_bar, percent_var, result_label, participants, instruc
         time.sleep(0.5)
 
     if not stop_flag:
-        # Show results if not stopped 
+        # Show results if not stopped
         log_file = log_results(results)
         message_queue.put(f"COMPLETED:{log_file}")
     else:
         message_queue.put("STOPPED")
 
     stop_flag = False
-
 
 def update_ui():
     """Update the UI with latest results."""
@@ -105,16 +104,16 @@ def update_ui():
 
     root.after(100, update_ui)  # Schedule the next UI update
 
-
 def send_messages():
     """Handle sending messages and transition to progress bar."""
     global stop_flag
     participants = participants_entry.get().split(',')
     instructor = instructor_entry.get().strip()
-    message = message_entry.get("1.0", tk.END).strip()
+    participant_message = participant_message_entry.get("1.0", tk.END).strip()
+    instructor_message = instructor_message_entry.get("1.0", tk.END).strip()
 
-    if not message:
-        messagebox.showerror("Error", "Message cannot be empty.")
+    if not participant_message and not instructor_message:
+        messagebox.showerror("Error", "Both participant and instructor messages cannot be empty.")
         return
 
     # Transition to progress frame
@@ -122,7 +121,10 @@ def send_messages():
 
     # Start sending messages in a separate thread
     stop_flag = False
-    threading.Thread(target=start_sending, args=(progress_bar, percent_var, progress_label, participants, instructor, message, main_frame, progress_frame)).start()
+    threading.Thread(target=start_sending, args=(
+        progress_bar, percent_var, progress_label, participants, instructor,
+        participant_message, instructor_message, main_frame, progress_frame
+    )).start()
 
     # Start UI update loop
     update_ui()
@@ -166,14 +168,18 @@ tk.Label(main_frame, text="Instructor's phone number:").pack(pady=5)
 instructor_entry = tk.Entry(main_frame, width=50)
 instructor_entry.pack(pady=5)
 
-tk.Label(main_frame, text="Message:").pack(pady=5)
-message_entry = tk.Text(main_frame, height=5, width=50)
-message_entry.pack(pady=5)
+tk.Label(main_frame, text="Message for Participants:").pack(pady=5)
+participant_message_entry = tk.Text(main_frame, height=5, width=50)
+participant_message_entry.pack(pady=5)
+
+tk.Label(main_frame, text="Message for Instructor:").pack(pady=5)
+instructor_message_entry = tk.Text(main_frame, height=5, width=50)
+instructor_message_entry.pack(pady=5)
 
 send_button = tk.Button(main_frame, text="Send Messages", command=send_messages)
 send_button.pack(pady=10)
 
-# Progress frame setup
+# Progress frame
 progress_frame = tk.Frame(root)
 progress_frame.pack(fill="both", expand=True)
 
@@ -184,7 +190,6 @@ progress_bar.pack(pady=10)
 percent_label = tk.Label(progress_frame, textvariable=percent_var)
 percent_label.pack(pady=5)
 
-# Define result_label to display messages or status updates
 result_label = tk.Label(progress_frame, text="Status will appear here.", wraplength=300, justify="center")
 result_label.pack(pady=5)
 
