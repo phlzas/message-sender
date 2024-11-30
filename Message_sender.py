@@ -17,7 +17,6 @@ message_queue = queue.Queue()
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
-
 def log_results(results):
     """Log results to a file."""
     log_file = os.path.join(LOG_DIR, f"log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
@@ -25,9 +24,19 @@ def log_results(results):
         file.write("\n".join(results))
     return log_file
 
+def validate_phone_number(phone_number):
+    """Validate the phone number to ensure it starts with '+'."""
+    if not phone_number.startswith('+'):
+        return False
+    return True
+
 def send_message_with_logging(participant, message):
     """Send a message and return the status."""
     try:
+        # Check if the phone number is valid
+        if not validate_phone_number(participant):
+            return f"Invalid phone number: {participant}. Please make sure it starts with '+'."
+
         current_time = datetime.datetime.now()
         scheduled_time = current_time + datetime.timedelta(minutes=2)  # Schedule 2 minutes from now
         hour, minute = scheduled_time.hour, scheduled_time.minute
@@ -116,6 +125,12 @@ def send_messages():
         messagebox.showerror("Error", "Both participant and instructor messages cannot be empty.")
         return
 
+    # Check if any participant phone numbers are invalid
+    invalid_numbers = [p.strip() for p in participants if not validate_phone_number(p)]
+    if invalid_numbers:
+        messagebox.showerror("Error", f"The following numbers are invalid (they don't start with '+'): {', '.join(invalid_numbers)}")
+        return
+
     # Transition to progress frame
     progress_frame.tkraise()
 
@@ -129,21 +144,19 @@ def send_messages():
     # Start UI update loop
     update_ui()
 
-
 def stop_operation():
     """Stop the ongoing operation."""
     global stop_flag
     stop_flag = True
 
-
 # Main UI setup
-root = tk.Tk()  # Ensure root is defined
+root = tk.Tk()
 root.title("WhatsApp Message Sender")
 
 def on_closing():
     """Handle the window close event."""
     global stop_flag
-    if  stop_flag:
+    if stop_flag:
         if messagebox.askyesno("Quit", "Messages are still being sent. Do you want to stop and exit?"):
             stop_flag = True
         else:
@@ -154,7 +167,6 @@ def on_closing():
 
 # Attach the handler to the window close event
 root.protocol("WM_DELETE_WINDOW", on_closing)
-
 
 # Main frame
 main_frame = tk.Frame(root)
