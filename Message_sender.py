@@ -4,18 +4,41 @@ import tkinter as tk
 from tkinter import ttk, StringVar, messagebox
 import time
 import threading
+import queue
+import os
 
 # Global stop flag
 stop_flag = False
+
+# Queue for thread-safe communication
+message_queue = queue.Queue()
+
+# Directory to save logs
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+def log_results(results):
+    """Log results to a file."""
+    log_file = os.path.join(LOG_DIR, f"log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+    with open(log_file, "w") as file:
+        file.write("\n".join(results))
+    return log_file
+
 
 def send_message_with_logging(participant, message):
     """Send a message and return the status."""
     try:
         current_time = datetime.datetime.now()
-        scheduled_time = current_time + datetime.timedelta(minutes=1, seconds=15)
+        scheduled_time = current_time + datetime.timedelta(minutes=2)  # Schedule 2 minutes from now
         hour, minute = scheduled_time.hour, scheduled_time.minute
 
-        kit.sendwhatmsg(participant, message, hour, minute, wait_time=27, tab_close=True, close_time=2)
+        # Ensure we're not crossing into the next hour
+        if minute >= 60:
+            hour += 1
+            minute -= 60
+
+        kit.sendwhatmsg(participant, message, hour, minute, wait_time=15, tab_close=True, close_time=2)
         return f"Message sent to {participant}."
     except Exception as e:
         return f"Failed to send message to {participant}: {e}"
@@ -29,9 +52,8 @@ def start_sending(progress_bar, percent_var, result_label, participants, instruc
     results = []
     completed = 0
     for participant in participants:
-        
         if stop_flag:  # Check if the operation should stop
-            messagebox.showwarning("Stopped", "Operation was stopped by the user.")
+            message_queue.put("STOPPED")
             break
 
         participant = participant.strip()
@@ -55,15 +77,34 @@ def start_sending(progress_bar, percent_var, result_label, participants, instruc
 
     if not stop_flag:
         # Show results if not stopped
-        messagebox.showinfo("Results", "\n".join(results))
+        log_file = log_results(results)
+        message_queue.put(f"COMPLETED:{log_file}")
     else:
-        messagebox.showinfo("Stopped", "Messages sending process stopped.")
+        message_queue.put("STOPPED")
 
-    # Reset and go back to main frame
     stop_flag = False
-    progress_bar['value'] = 0
-    percent_var.set("0%")
-    main_frame.tkraise()
+
+
+def update_ui():
+    """Update the UI with latest results."""
+    try:
+        if not message_queue.empty():
+            message = message_queue.get_nowait()
+            result_label.config(text=message)
+
+            if message.startswith("COMPLETED"):
+                _, log_file = message.split(":")
+                messagebox.showinfo("Results", f"Messages sent successfully! Log saved to {log_file}.")
+            elif message == "STOPPED":
+                messagebox.showinfo("Stopped", "Messages sending process stopped.")
+            main_frame.tkraise()
+            progress_bar['value'] = 0
+            percent_var.set("0%")
+    except queue.Empty:
+        pass
+
+    root.after(100, update_ui)  # Schedule the next UI update
+
 
 def send_messages():
     """Handle sending messages and transition to progress bar."""
@@ -83,10 +124,15 @@ def send_messages():
     stop_flag = False
     threading.Thread(target=start_sending, args=(progress_bar, percent_var, progress_label, participants, instructor, message, main_frame, progress_frame)).start()
 
+    # Start UI update loop
+    update_ui()
+
+
 def stop_operation():
     """Stop the ongoing operation."""
     global stop_flag
     stop_flag = True
+
 
 # Main UI setup
 root = tk.Tk()
@@ -111,7 +157,7 @@ message_entry.pack(pady=5)
 send_button = tk.Button(main_frame, text="Send Messages", command=send_messages)
 send_button.pack(pady=10)
 
-# Progress frame
+# Progress frame setup
 progress_frame = tk.Frame(root)
 progress_frame.pack(fill="both", expand=True)
 
@@ -121,6 +167,10 @@ progress_bar.pack(pady=10)
 
 percent_label = tk.Label(progress_frame, textvariable=percent_var)
 percent_label.pack(pady=5)
+
+# Define result_label to display messages or status updates
+result_label = tk.Label(progress_frame, text="Status will appear here.", wraplength=300, justify="center")
+result_label.pack(pady=5)
 
 progress_label = tk.Label(progress_frame, text="Sending messages...")
 progress_label.pack(pady=5)
