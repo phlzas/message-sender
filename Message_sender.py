@@ -76,7 +76,7 @@ def start_sending(progress_bar, percent_var, result_label, participants, instruc
         time.sleep(0.5)
 
     if not stop_flag:
-        # Show results if not stopped
+        # Show results if not stopped 
         log_file = log_results(results)
         message_queue.put(f"COMPLETED:{log_file}")
     else:
